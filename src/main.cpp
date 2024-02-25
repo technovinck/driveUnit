@@ -308,7 +308,7 @@ void setup(void)
   int networkCount = WiFi.scanNetworks();
   bool homeNetworkFound = false;
 
-  Serial.println("Suche nach Heimnetzwerk");
+  Serial.println("Suche nach muesam");
   for (int i = 0; i < networkCount; ++i) {
       //Serial.print(".");
       if (WiFi.SSID(i) == ssid) {
@@ -323,7 +323,7 @@ void setup(void)
   
   if (homeNetworkFound) {
     // Verbindung zum Heimnetzwerk herstellen
-    Serial.print("Connecting to SSID: ");
+    Serial.print("Connecting to MueSam: ");
     Serial.print(ssid);
     WiFi.begin(ssid, password);
 
@@ -331,7 +331,7 @@ void setup(void)
     Serial.print("Verbindung zum WLAN herstellen...");
     while (WiFi.status() != WL_CONNECTED && attempts < 20) {
         delay(1000);
-        Serial.print(".");
+        Serial.print(WiFi.status());
         attempts++;
     }
 
