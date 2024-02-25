@@ -16,44 +16,33 @@
 // BL0-|_______|-BR2
 //    
 //********************
-#define UP 1
-#define DOWN 2
-#define LEFT 9
-#define RIGHT 10
-#define UP_LEFT 5
-#define UP_RIGHT 6
-#define DOWN_LEFT 7
-#define DOWN_RIGHT 8
-#define TURN_LEFT 3
-#define TURN_RIGHT 4
-#define STOP 0
-
-#define TESTMODE_FL 25
-#define TESTMODE_FR 26
-#define TESTMODE_BL 27
-#define TESTMODE_BR 28
-
 #define FRONT_RIGHT_MOTOR 0
 #define BACK_RIGHT_MOTOR 1
 #define FRONT_LEFT_MOTOR 2
 #define BACK_LEFT_MOTOR 3
 
+// Definiere die Richtungen und Aktionen als numerische Werte
+#define STOP 0
+#define UP 1
+#define DOWN 2
+#define LEFT 3
+#define RIGHT 4
+#define UP_LEFT 5
+#define UP_RIGHT 6
+#define DOWN_LEFT 7
+#define DOWN_RIGHT 8
+#define TURN_LEFT 9
+#define TURN_RIGHT 10
+#define TESTMODE_FL 25
+#define TESTMODE_FR 26
+#define TESTMODE_BL 27
+#define TESTMODE_BR 28
+
 #define FORWARD 1
 #define BACKWARD -1
 
-//enum Direction(UP=1, DOWN, LEFT, RIGHT, UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT, TURN_LEFT, TURN_RIGHT, STOP=0);
-//int test = Direction[UP];
-
-
-AsyncWebServer server(80);
-AsyncWebSocket ws("/ws");
-
-WiFiClient espClient;
-PubSubClient client(espClient);
-
-
 // Globale Variable, um die aktuelle Geschwindigkeit zu speichern
-int currentSpeed = 128;  // Standardgeschwindigkeit
+int currentSpeed = 96;  // Standardgeschwindigkeit
 bool individualControl = false; // Standardmäßig keine individuelle Steuerung
 
 struct MOTOR_PINS
@@ -70,6 +59,43 @@ std::vector<MOTOR_PINS> motorPins =
         {25, 33}, //BACK_LEFT_MOTOR
 };
 
+struct TopicMapping {
+  const char* name;
+  u_int8_t value;
+};
+
+const TopicMapping topicMappings[] = {
+  {"up", 1},
+  {"down", 2},
+  {"left", 3},
+  {"right", 4},
+  {"up_left", 5},
+  {"up_right", 6},
+  {"down_left", 7},
+  {"down_right", 8},
+  {"turn_left", 9},
+  {"turn_right", 10},
+  {"stop", 0},
+  {"testmode_fl", 25},
+  {"testmode_fr", 26},
+  {"testmode_bl", 27},
+  {"testmode_br", 28}
+};
+
+const int numTopicMappings = sizeof(topicMappings) / sizeof(topicMappings[0]);
+
+int getTopicValue(const char* topicName) {
+  for (int i = 0; i < numTopicMappings; ++i) {
+    if (strcmp(topicMappings[i].name, topicName) == 0) {
+      return topicMappings[i].value;
+    }
+  }
+  // Wenn das Thema nicht gefunden wurde, gib -1 zurück oder handle den Fehler entsprechend
+  return -1;
+}
+
+WiFiClient espClient;
+PubSubClient client(espClient);
 
 // Muesam Funktionen
 void setUpPinModes()
@@ -119,6 +145,10 @@ void rotateMotor(int motorIndex, int direction, int speed) {
 }
 
 void rotateMotors(int frontLeft, int frontRight, int backLeft, int backRight, int motorSpeed) {
+  Serial.print(frontLeft);
+  Serial.print(frontRight);
+  Serial.print(backLeft);
+  Serial.println(backRight);
   rotateMotor(FRONT_RIGHT_MOTOR, frontRight, motorSpeed);
   rotateMotor(BACK_RIGHT_MOTOR, backRight, motorSpeed);
   rotateMotor(FRONT_LEFT_MOTOR, frontLeft, motorSpeed);
@@ -132,10 +162,16 @@ void rotateMotors(int frontLeft, int frontRight, int backLeft, int backRight, in
  *
  * @param movement
  */
-void executeMovement(int movement) {
+void executeMovement(u_int8_t direction, u_int16_t travelTime ) {
   int speed = currentSpeed;  // default Geschwindigkeit setzen
 
-  switch(movement) {
+  // Wenn STOP empfangen wird, stoppe sofort die Motoren und kehre zurück
+  //if (direction == STOP) {
+  //  rotateMotors(STOP, STOP, STOP, STOP, speed);
+  //  return;
+  //}
+
+  switch(direction) {
     case UP:
       rotateMotors(FORWARD, FORWARD, FORWARD, FORWARD, speed);
       break;
@@ -182,102 +218,45 @@ void executeMovement(int movement) {
       rotateMotors(STOP, STOP, STOP, STOP, speed);
       break;
   }
+  // Fahrzeit
+  //delay(travelTime);
+
+  // Stoppe die Motoren wenn Zeit abgelaufen
+  //rotateMotors(STOP, STOP, STOP, STOP, speed);
+
 }
 
-
-void processCarMovement(String inputValue)
-{
-  Serial.printf("Got value as %s %d\n", inputValue.c_str(), inputValue.toInt());
-
-  if (inputValue.startsWith("SPEED:"))
-  {
-    // Extrahieren Sie die Geschwindigkeit und speichern Sie sie
-    currentSpeed = inputValue.substring(6).toInt();
-  }
-  else
-  {
-    // Weiterhin die anderen Steuerbefehle behandeln
-    switch (inputValue.toInt())
-    {
-      case UP:
-      case DOWN:
-      case LEFT:
-      case RIGHT:
-      case UP_LEFT:
-      case UP_RIGHT:
-      case DOWN_LEFT:
-      case DOWN_RIGHT:
-      case TURN_LEFT:
-      case TURN_RIGHT:
-      case TESTMODE_FL:
-      case TESTMODE_FR:
-      case TESTMODE_BL:
-      case TESTMODE_BR:
-      case STOP:
-        // Wenn der Befehl einem bekannten Steuerbefehl entspricht, führe die Bewegung aus
-        executeMovement(inputValue.toInt());
-        break;
-  
-      default:
-        // Behandeln Sie unbekannte Befehle hier
-        break;
-    }
-  }
-}
-
-//Webserver Funktionen
-void handleRoot(AsyncWebServerRequest *request) 
-{
-  request->send_P(200, "text/html", htmlHomePage);
-}
-
-void handleNotFound(AsyncWebServerRequest *request) 
-{
-    request->send(404, "text/plain", "File Not Found");
-}
-
-void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,void *arg, uint8_t *data, size_t len) 
-{                      
-  switch (type) 
-  {
-    case WS_EVT_CONNECT:
-      Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
-      //client->text(getRelayPinsStatusJson(ALL_RELAY_PINS_INDEX));
-      break;
-    case WS_EVT_DISCONNECT:
-      Serial.printf("WebSocket client #%u disconnected\n", client->id());
-      processCarMovement("0");
-      break;
-    case WS_EVT_DATA:
-      AwsFrameInfo *info;
-      info = (AwsFrameInfo*)arg;
-      if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) 
-      {
-        std::string myData = "";
-        myData.assign((char *)data, len);
-        processCarMovement(myData.c_str());       
-      }
-      break;
-    case WS_EVT_PONG:
-    case WS_EVT_ERROR:
-      break;
-    default:
-      break;  
-  }
-}
-
-// Funktion zum Empfangen von MQTT-Nachrichten
+/// @brief Behandlung der MQTT Nachrichten-Themen
+/// @param topic 
+/// @param payload 
+/// @param length 
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
+  // Hier können weitere Verarbeitungen der MQTT-Nachrichten hinzugefügt werden
+  // (z. B. Logging, Datenverarbeitung, usw.)
+  Serial.print("Topic: ");
+  Serial.println(topic);
+  // Führe die entsprechende Aktion basierend auf dem MQTT-Thema aus
+  if (strcmp(String(topic).substring(10,14).c_str(), "move") == 0) {
+    // Extrahiere die Richtung aus dem Thema
+    String directionString = String(topic).substring(15);
+    const char* direction = directionString.c_str(); // Richtung als const char*
 
-  // Hier können Sie die Payload weiter verarbeiten
+    Serial.print("Extracted Direction: ");
+    Serial.println(direction);
+    u_int8_t dirNum= getTopicValue(direction);
+    Serial.print("Direction = ");
+    Serial.print(direction);
+    Serial.print(" : ");
+    Serial.println(dirNum);
+
+    // Extrahiere die Länge der Fahrzeit aus der Payload
+    u_int16_t travelTime = atoi((char *)payload);
+    
+    // Führe die Bewegung aus
+    executeMovement(dirNum, travelTime);
+  }
 }
+
 
 void reconnect() {
   // Wiederherstellen der MQTT-Verbindung
@@ -286,131 +265,44 @@ void reconnect() {
     if (client.connect("ESP32Client", mqttUser, mqttPassword)) {
       Serial.println("connected");
       // Hier kannst du die Nachricht senden
-      client.publish("esp32/status", "Connected");
+      client.publish("driveUnit/status", "Connected");
       // Abonnieren von Nachrichten
-      client.subscribe("esp32/control");
+      client.subscribe("driveUnit/move/#");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
       Serial.println(" try again in 5 seconds");
+      // Verzögerung, bevor ein erneuter Verbindungsversuch unternommen wird
       delay(5000);
     }
   }
 }
 
-void setup(void)
-{
+void setup() {
   Serial.begin(115200);
   Serial.println("Booting...");
-
-  //WIFI part
-  // Überprüfen, ob das WLAN-Netzwerk in der Nähe ist
-  int networkCount = WiFi.scanNetworks();
-  bool homeNetworkFound = false;
-
-  Serial.println("Suche nach muesam");
-  for (int i = 0; i < networkCount; ++i) {
-      //Serial.print(".");
-      if (WiFi.SSID(i) == ssid) {
-          homeNetworkFound = true;
-          Serial.print(WiFi.SSID(i));
-          Serial.println(" gefunden!");
-          break;
-      } else {
-        Serial.println(WiFi.SSID(i));
-      }
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+      delay(1000);
+      Serial.print(".");
   }
-  
-  if (homeNetworkFound) {
-    // Verbindung zum Heimnetzwerk herstellen
-    Serial.print("Connecting to MueSam: ");
-    Serial.print(ssid);
-    WiFi.begin(ssid, password);
-
-    int attempts = 0;
-    Serial.print("Verbindung zum WLAN herstellen...");
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-        delay(1000);
-        Serial.print(WiFi.status());
-        attempts++;
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("Verbunden mit dem WLAN");
-        //Hostnamen nach dem Verbindungsaufbau setzen
-        WiFi.setHostname(hostname);
-        Serial.print("Hostname: ");
-        Serial.println(hostname);
-        Serial.print("Signalstärke: ");
-        Serial.println(WiFi.RSSI());
-        delay(1000); // Wartezeit nach der WLAN-Verbindung
-    } else {
-      Serial.println("Verbindung konnte nicht hergestellt werden.");
-    }
-  } else {
-      // Wenn das WLAN-Netzwerk nicht in der Nähe ist, Hotspot erstellen
-      Serial.println("Suche nach Heimnetzwerk fehlgeschlagen, erstelle Hotspot.");
-      WiFi.softAP(hotspotSSID, hotspotPassword);
-      Serial.println("Hotspot erstellt");
-      Serial.println(hostname);
-      Serial.print(" im Hotspot-Modus!");
-  }
-
-
-  if (WiFi.status() == WL_CONNECTED){
-    //initialisiere Webserver
-    server.on("/", HTTP_GET, handleRoot);
-    server.onNotFound(handleNotFound);
-
-    ws.onEvent(onWebSocketEvent);
-    server.addHandler(&ws);
-
-    server.begin();
-    Serial.println("HTTP server started");
-
-    // Initialisiere ArduinoOTA
-    ArduinoOTA.onStart([]() {
-        Serial.println("Starte OTA-Aktualisierung");
-    });
-
-    ArduinoOTA.onEnd([]() {
-        Serial.println("\nOTA-Aktualisierung abgeschlossen");
-    });
-
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        Serial.printf("Fortschritt: %u%%\r", (progress / (total / 100)));
-    });
-
-    ArduinoOTA.onError([](ota_error_t error) {
-        Serial.printf("OTA-Fehler [%u]: ", error);
-        if (error == OTA_AUTH_ERROR) Serial.println("Authentifizierung fehlgeschlagen");
-        else if (error == OTA_BEGIN_ERROR) Serial.println("OTA-Begin fehlgeschlagen");
-        else if (error == OTA_CONNECT_ERROR) Serial.println("OTA-Verbindung fehlgeschlagen");
-        else if (error == OTA_RECEIVE_ERROR) Serial.println("OTA-Empfangsfehler");
-        else if (error == OTA_END_ERROR) Serial.println("OTA-Endfehler");
-    });
-
-    ArduinoOTA.begin();
-  } else {
-    Serial.println("Nix zu tun, da keine WIFI-Verbindung hergestellt wurde");
-  }
-
-client.setServer(mqttServer, mqttPort);
-client.setCallback(callback);
-
-
+  Serial.println("\nConnected to WiFi");
+  ArduinoOTA.begin();
+  client.setServer(mqttServer, mqttPort);
+  client.setCallback(callback);
   setUpPinModes();
-} 
+}
 
-void loop() 
-{
+void loop() {
   ArduinoOTA.handle();
-  ws.cleanupClients();
 
   // Überprüfen, ob eine Verbindung zum MQTT-Broker hergestellt ist
   if (!client.connected()) {
-    reconnect();
+    reconnect(); // Wenn keine Verbindung besteht, versuche erneut eine Verbindung herzustellen
+  } else {
+    // MQTT-Nachrichten verarbeiten, wenn eine Verbindung besteht
+    client.loop();
   }
-  // MQTT-Nachrichten verarbeiten
-  client.loop();
 }
