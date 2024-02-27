@@ -42,7 +42,7 @@
 #define BACKWARD -1
 
 // Globale Variable, um die aktuelle Geschwindigkeit zu speichern
-int currentSpeed = 96;  // Standardgeschwindigkeit
+uint8_t currentSpeed = 100;  // Standardgeschwindigkeit
 bool individualControl = false; // Standardmäßig keine individuelle Steuerung
 
 struct MOTOR_PINS
@@ -53,10 +53,10 @@ struct MOTOR_PINS
 
 std::vector<MOTOR_PINS> motorPins =
     {
-        {18, 19}, //BACK_RIGHT_MOTOR
-        {16, 17}, //FRONT_RIGHT_MOTOR
-        {27, 26}, //FRONT_LEFT_MOTOR
-        {25, 33}, //BACK_LEFT_MOTOR
+        {25, 33}, //FRONT_LEFT_MOTOR FL <
+        {17, 16}, //FRONT_RIGHT_MOTOR BL
+        {27, 26}, //BACK_RIGHT_MOTOR
+        {19, 18}, //BACK_LEFT_MOTOR
 };
 
 struct TopicMapping {
@@ -179,28 +179,28 @@ void executeMovement(u_int8_t direction, u_int16_t travelTime ) {
       rotateMotors(BACKWARD, BACKWARD, BACKWARD, BACKWARD, speed);
       break;
     case LEFT:
-      rotateMotors(BACKWARD, FORWARD, BACKWARD, FORWARD, speed);
+      rotateMotors(BACKWARD, FORWARD, FORWARD, BACKWARD, speed);
       break;
     case RIGHT:
-      rotateMotors(FORWARD, BACKWARD, FORWARD, BACKWARD, speed);
+      rotateMotors(FORWARD, BACKWARD, BACKWARD, FORWARD, speed);
       break;
     case UP_LEFT:
-      rotateMotors(STOP, FORWARD, STOP, FORWARD, speed);
+      rotateMotors(STOP, FORWARD, FORWARD, STOP, speed);
       break;
     case UP_RIGHT:
-      rotateMotors(FORWARD, STOP, FORWARD, STOP, speed);
+      rotateMotors(FORWARD, STOP, STOP, FORWARD, speed);
       break;
     case DOWN_LEFT:
-      rotateMotors(STOP, BACKWARD, STOP, BACKWARD, speed);
+      rotateMotors(BACKWARD, STOP, STOP, BACKWARD, speed);
       break;
     case DOWN_RIGHT:
-      rotateMotors(BACKWARD, STOP, BACKWARD, STOP, speed);
+      rotateMotors(STOP, BACKWARD, BACKWARD, STOP, speed);
       break;
     case TURN_LEFT:
-      rotateMotors(FORWARD, FORWARD, BACKWARD, BACKWARD, speed);
+      rotateMotors(BACKWARD, FORWARD, BACKWARD, FORWARD, speed);
       break;
     case TURN_RIGHT:
-      rotateMotors(BACKWARD, BACKWARD, FORWARD, FORWARD, speed);
+      rotateMotors(FORWARD, BACKWARD, FORWARD, BACKWARD, speed);
       break;
     case TESTMODE_FL:
       rotateMotors(STOP, FORWARD, STOP, STOP, speed);
@@ -255,6 +255,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
     // Führe die Bewegung aus
     executeMovement(dirNum, travelTime);
   }
+  if (strcmp(String(topic).substring(10,15).c_str(), "speed") == 0) {
+  // Extrahiere die Geschwindigkeit aus dem Payload
+  currentSpeed = atoi((char *)payload);
+  client.publish("driveUnit/status", "Set speed to: ");
+  Serial.println(currentSpeed); 
+  }
 }
 
 
@@ -268,6 +274,7 @@ void reconnect() {
       client.publish("driveUnit/status", "Connected");
       // Abonnieren von Nachrichten
       client.subscribe("driveUnit/move/#");
+      client.subscribe("driveUnit/speed/#");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
