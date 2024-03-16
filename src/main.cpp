@@ -18,14 +18,14 @@
 //********************
 #define UP 1
 #define DOWN 2
-#define LEFT 9
-#define RIGHT 10
+#define LEFT 3 //9
+#define RIGHT 4 //10
 #define UP_LEFT 5
 #define UP_RIGHT 6
 #define DOWN_LEFT 7
 #define DOWN_RIGHT 8
-#define TURN_LEFT 3
-#define TURN_RIGHT 4
+#define TURN_LEFT 9 //3
+#define TURN_RIGHT 10 //4
 #define STOP 0
 
 #define TESTMODE_FL 25
@@ -64,12 +64,20 @@ struct MOTOR_PINS
 
 std::vector<MOTOR_PINS> motorPins =
     {
+        {25, 33}, //BACK_RIGHT_MOTOR
+        {17, 16}, //FRONT_RIGHT_MOTOR
+        {27, 26}, //FRONT_LEFT_MOTOR
+        {19, 18}, //BACK_LEFT_MOTOR
+};
+/*
+std::vector<MOTOR_PINS> motorPins =
+    {
         {18, 19}, //BACK_RIGHT_MOTOR
         {16, 17}, //FRONT_RIGHT_MOTOR
         {27, 26}, //FRONT_LEFT_MOTOR
         {25, 33}, //BACK_LEFT_MOTOR
 };
-
+*/
 
 // Muesam Funktionen
 void setUpPinModes()
@@ -143,28 +151,28 @@ void executeMovement(int movement) {
       rotateMotors(BACKWARD, BACKWARD, BACKWARD, BACKWARD, speed);
       break;
     case LEFT:
-      rotateMotors(BACKWARD, FORWARD, BACKWARD, FORWARD, speed);
+      rotateMotors(BACKWARD, FORWARD, FORWARD, BACKWARD, speed);
       break;
     case RIGHT:
-      rotateMotors(FORWARD, BACKWARD, FORWARD, BACKWARD, speed);
+      rotateMotors(FORWARD, BACKWARD, BACKWARD, FORWARD, speed);
       break;
     case UP_LEFT:
-      rotateMotors(STOP, FORWARD, STOP, FORWARD, speed);
+      rotateMotors(STOP, FORWARD, FORWARD, STOP, speed);
       break;
     case UP_RIGHT:
-      rotateMotors(FORWARD, STOP, FORWARD, STOP, speed);
+      rotateMotors(FORWARD, STOP, STOP, FORWARD, speed);
       break;
     case DOWN_LEFT:
-      rotateMotors(STOP, BACKWARD, STOP, BACKWARD, speed);
+      rotateMotors(BACKWARD, STOP, STOP, BACKWARD, speed);
       break;
     case DOWN_RIGHT:
-      rotateMotors(BACKWARD, STOP, BACKWARD, STOP, speed);
+      rotateMotors(STOP, BACKWARD, BACKWARD, STOP, speed);
       break;
     case TURN_LEFT:
-      rotateMotors(FORWARD, FORWARD, BACKWARD, BACKWARD, speed);
+      rotateMotors(BACKWARD, FORWARD, BACKWARD, FORWARD, speed);
       break;
     case TURN_RIGHT:
-      rotateMotors(BACKWARD, BACKWARD, FORWARD, FORWARD, speed);
+      rotateMotors(FORWARD, BACKWARD, FORWARD, BACKWARD, speed);
       break;
     case TESTMODE_FL:
       rotateMotors(STOP, FORWARD, STOP, STOP, speed);
@@ -183,7 +191,6 @@ void executeMovement(int movement) {
       break;
   }
 }
-
 
 void processCarMovement(String inputValue)
 {
@@ -329,7 +336,7 @@ void setup(void)
 
     int attempts = 0;
     Serial.print("Verbindung zum WLAN herstellen...");
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    while (WiFi.status() != WL_CONNECTED && attempts < 50) {
         delay(1000);
         Serial.print(".");
         attempts++;
@@ -354,10 +361,7 @@ void setup(void)
       Serial.println("Hotspot erstellt");
       Serial.println(hostname);
       Serial.print(" im Hotspot-Modus!");
-  }
 
-
-  if (WiFi.status() == WL_CONNECTED){
     //initialisiere Webserver
     server.on("/", HTTP_GET, handleRoot);
     server.onNotFound(handleNotFound);
@@ -367,6 +371,11 @@ void setup(void)
 
     server.begin();
     Serial.println("HTTP server started");
+
+  }
+
+
+  if (WiFi.status() == WL_CONNECTED){
 
     // Initialisiere ArduinoOTA
     ArduinoOTA.onStart([]() {
